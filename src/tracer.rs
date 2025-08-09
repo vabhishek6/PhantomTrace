@@ -166,29 +166,33 @@ impl PhantomTracer {
     }
 
     pub fn get_trace_report(&self) -> TraceReport {
-        let mut total_phantoms = 0;
+        let mut total_phantoms_created = 0;
         let mut total_characters_traced = 0;
         let mut severity_breakdown = HashMap::new();
 
-        for (_rule_name, stats) in &self.trace_stats {
-            total_phantoms += stats.phantoms_created;
+        for stats in self.trace_stats.values() {
+            total_phantoms_created += stats.phantoms_created;
             total_characters_traced += stats.characters_traced;
             *severity_breakdown
                 .entry(stats.severity_level.clone())
                 .or_insert(0u64) += stats.phantoms_created;
         }
 
+        let rules_triggered = self
+            .trace_stats
+            .values()
+            .filter(|s| s.phantoms_created > 0)
+            .count();
+
+        let generation_time = std::time::SystemTime::now();
+
         TraceReport {
-            total_phantoms_created: total_phantoms,
-            total_characters_traced: total_characters_traced,
-            rules_triggered: self
-                .trace_stats
-                .iter()
-                .filter(|(_, stats)| stats.phantoms_created > 0)
-                .count(),
+            total_phantoms_created,
+            total_characters_traced,
+            rules_triggered,
             severity_breakdown,
             detailed_stats: self.trace_stats.clone(),
-            generation_time: std::time::SystemTime::now(),
+            generation_time,
         }
     }
 
