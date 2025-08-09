@@ -13,17 +13,32 @@ Built for secure detection and masking of sensitive data in application logs and
 
 ## Overview
 
-PhantomTrace is a high-performance tool for detecting and obfuscating sensitive data in text files, logs, and data streams.  
-It is designed with security and compliance requirements in mind, particularly for PCI, PII, and related regulations.
+PhantomTrace is a high-performance data obfuscation and log preprocessing platform designed for enterprise environments 
+requiring PCI DSS, GDPR, HIPAA, and regulatory compliance. It provides secure detection and obfuscation of sensitive data 
+in logs, files, and real-time data streams with native integration for enterprise logging platforms.
 
-### Key Features
-- **Standards Compliance** – Suitable for PCI DSS, GDPR, HIPAA, and CCPA workflows.  
-- **High Throughput** – Processes 50K–100K+ lines per second.  
-- **Accurate Detection** – Uses advanced, tested regex patterns.  
-- **Multiple Obfuscation Methods** – Phantom, Vanish, Mirror, Mask, and Tokenize.  
-- **Detailed Reporting** – Generate trace and coverage reports.  
-- **Full Configurability** – Define custom patterns and processing rules.  
-- **Format Support** – Handles text, JSON, CSV, and trace report output.
+## Features
+
+### **Core Data Protection**
+- **Enterprise-Grade Pattern Recognition**: Advanced detection of credit cards, SSNs, emails, API keys, JWT tokens, database connections, and custom sensitive data
+- **Multiple Obfuscation Methods**: Phantom (masking), Vanish (removal), Mirror (hashing), Mask (replacement), Tokenize (traceable tokens)
+- **Severity-Based Processing**: Critical, High, Medium, Low priority handling with customizable rules
+- **Comprehensive Reporting**: Detailed trace reports, event logging, coverage analytics, and processing metrics
+
+### **Log Preprocessing & Enterprise Integration**
+- **Real-Time Stream Processing**: stdin/stdout pipeline integration for live log processing
+- **TCP Server Mode**: Network service for distributed log collection and processing
+- **File Monitoring**: Real-time processing of log files with automatic change detection
+- **Splunk Integration**: Native compatibility with Splunk Universal Forwarder and Enterprise
+- **ELK Stack Support**: Elasticsearch-ready JSON output with metadata
+- **Log Shipper Compatibility**: Works with Filebeat, Fluentd, Logstash, and other common shippers
+
+### **Enterprise Operations**
+- **High-Performance Processing**: Multi-threaded operation supporting 50K+ lines per second
+- **Multiple Operational Modes**: Standalone, stream processor, TCP server, file monitor, health server
+- **Configuration Management**: Presets for Splunk, ELK, high-performance, and custom deployments
+- **Health Monitoring**: Built-in health checks, metrics collection, and graceful shutdown handling
+- **Production Ready**: Signal handling, error recovery, audit logging, and daemon mode support
 
 ***
 
@@ -38,7 +53,7 @@ cargo install phantomtrace
 
 **From Source**
 ```bash
-git clone https://github.com/yourusername/phantomtrace
+git clone https://github.com/vabhishek6/PhantomTrace
 cd phantomtrace
 cargo build --release
 ```
@@ -90,60 +105,142 @@ phantomtrace -i system.log -o clean.log --create-trace-map
 
 ***
 
-## Library Usage (Rust)
-
-```rust
-use phantomtrace::{phantom_text, PhantomTraceConfig, PhantomTraceProcessor};
-
-let input = "User: john.doe@example.com, Card: 4532-1234-5678-9012";
-let result = phantom_text(input)?;
-
-// Output: "User: joh███████████@example.com, Card: ████-████-████-9012"
-println!("Result: {}", result);
-
-// Advanced usage
-let config = PhantomTraceConfig::default();
-let mut processor = PhantomTraceProcessor::new(config)?;
-let processed = processor.phantom_text(input);
-
-println!("Phantomed: {}", processed.phantomed_text);
-println!("Events: {}", processed.phantom_events.len());
-```
-
-***
-
 ## Configuration
 
-PhantomTrace includes default patterns for common sensitive data types such as credit card numbers, SSNs, email addresses, phone numbers, IP addresses, and API keys.  
-You can extend or override these with a JSON configuration file.
+### **Built-in Patterns**
+PhantomTrace includes production-ready patterns for:
+- **PCI Data**: Credit cards, CVV numbers, payment tokens
+- **PII Data**: SSN, email addresses, phone numbers, addresses
+- **Security**: API keys, JWT tokens, AWS access keys, passwords
+- **Infrastructure**: IP addresses, database connections, URLs
+- **Custom**: Configurable regex patterns for domain-specific data
 
-Example custom rule:
-```json
+### **Configuration Presets**
+- **`default`**: Balanced performance and security for general use
+- **`splunk`**: Optimized for Splunk Universal Forwarder integration
+- **`elk`**: Configured for ELK Stack (Elasticsearch/Logstash/Kibana)
+- **`high-performance`**: Maximum throughput optimization for high-volume environments
+
+### **Sample Configuration**
+```
 {
-  "name": "custom_id",
-  "pattern": "\\bCUST-\\d{6}\\b",
-  "method": "Phantom",
-  "preserve_chars": 4,
-  "severity": "Medium"
+"tracing": {
+"enabled": true,
+"case_sensitive": false,
+"rules": [
+{
+"name": "custom_api_key",
+"pattern": "\\bapi[_-]key[:\\s=]+[\\w\\-]{32,}\\b",
+"method": "Mask",
+"replacement": "[API_KEY_REDACTED]",
+"severity": "Critical"
+}
+]
+},
+"preprocessing": {
+"mode": "StreamProcessor",
+"splunk_integration": {
+"enabled": true,
+"phantom_sourcetype": "app_logs_phantomed"
+}
+},
+"processing": {
+"performance_mode": true,
+"batch_size": 5000
+}
 }
 ```
 
-***
+---
 
-## Performance
+## Performance & Scalability
 
-| Hardware Class | Throughput    | Memory Usage |
-|----------------|---------------|--------------|
-| Desktop/Laptop | 50K–75K lines/sec | Moderate   |
+### **Throughput Benchmarks**
+| Configuration | Lines/Second | Memory Usage | CPU Usage |
+|---------------|--------------|--------------|-----------|
+| Standard      | 25K-35K      | ~50MB        | 1-2 cores |
+| Performance   | 50K-75K      | ~100MB       | 2-4 cores |
+| High-Volume   | 100K+        | ~200MB       | 4-8 cores |
 
-Performance depends on batch size, enabled rules, and whether additional reports are generated.
+### **Optimization Options**
+```
+# Maximum performance configuration
+phantomtrace --performance-mode --workers 16 --buffer-size 50000
 
-***
+# Memory-optimized for constrained environments
+phantomtrace --workers 2 --buffer-size 1000
+
+# High-throughput stream processing
+phantomtrace --stream --performance-mode --workers 8
+```
+
+---
+
+## Production Deployment
+
+### **Systemd Service**
+```
+[Unit]
+Description=PhantomTrace Log Preprocessor
+After=network.target
+
+[Service]
+Type=simple
+User=phantom
+ExecStart=/usr/local/bin/phantomtrace --tcp-server 5140 --config /etc/phantom/config.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### **Kubernetes Deployment**
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: phantomtrace
+spec:
+replicas: 3
+selector:
+matchLabels:
+app: phantomtrace
+template:
+metadata:
+labels:
+app: phantomtrace
+spec:
+containers:
+- name: phantomtrace
+image: phantomtrace:latest
+ports:
+- containerPort: 5140
+args: ["--tcp-server", "5140", "--splunk-mode"]
+resources:
+requests:
+memory: "128Mi"
+cpu: "100m"
+limits:
+memory: "512Mi"
+cpu: "500m"
+```
+
+---
+
+## Output Formats
+
+- **Text**: Standard text output with obfuscated content for traditional log processing
+- **JSON**: Structured output with metadata for system integration and APIs
+- **CSV**: Event-based output for analysis, reporting, and compliance auditing
+- **Trace Report**: Comprehensive processing reports with statistics and compliance data
+
+---
 
 ## Development
 
 ```bash
-git clone https://github.com/yourusername/phantomtrace
+git clone https://github.com/vabhishek6/PhantomTrace
 cd phantomtrace
 cargo build
 cargo test
