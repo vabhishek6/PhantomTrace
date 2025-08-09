@@ -8,7 +8,7 @@ repository = "https://github.com/vabhishek6/PhantomTrace"
 homepage = "https://github.com/vabhishek6/PhantomTrace"
 keywords = ["pii", "pci", "data-protection", "privacy", "obfuscation", "phantom", "gdpr"]
 categories = ["text-processing", "command-line-utilities", "cryptography"]
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Abhishek"]
 readme = "README.md"
 exclude = ["examples/*", "tests/*", "docs/*"]
 
