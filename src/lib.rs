@@ -1,15 +1,7 @@
-//! # PhantomTrace 👻
+//! # PhantomTrace
 //!
 //! PhantomTrace is a powerful PCI/PII data obfuscation library that makes sensitive data
 //! disappear like a phantom, leaving no trace behind.
-//!
-//! ## Features
-//!
-//! - **Advanced Pattern Recognition**: Detects credit cards, SSNs, emails, API keys, and more
-//! - **Multiple Phantom Methods**: Phantom, Vanish, Mirror, Mask, and Tokenize
-//! - **Severity-Based Processing**: Critical, High, Medium, Low severity levels
-//! - **Comprehensive Reporting**: Detailed trace reports and statistics
-//! - **High Performance**: Process thousands of lines per second
 //!
 //! ## Quick Start
 //!
@@ -18,13 +10,14 @@
 //!
 //! // Simple phantoming with defaults
 //! let input = "User email: john.doe@example.com, SSN: 123-45-6789";
-//! let phantomed = phantom_text(input)?;
+//! let phantomed = phantom_text(input).unwrap();
 //! println!("Phantomed: {}", phantomed);
 //!
 //! // Advanced usage with custom config
 //! let config = PhantomTraceConfig::default();
-//! let mut processor = PhantomTraceProcessor::new(config)?;
+//! let mut processor = PhantomTraceProcessor::new(config).unwrap();
 //! let result = processor.phantom_text(input);
+//! println!("Result: {}", result.phantomed_text);
 //! ```
 
 pub mod config;
