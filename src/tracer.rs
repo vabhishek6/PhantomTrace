@@ -1,15 +1,15 @@
 use regex::Regex;
-use std::collections::HashMap;
 use serde::Serialize;
+use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhantomTracer {
     compiled_rules: Vec<CompiledTraceRule>,
     trace_stats: HashMap<String, TraceStats>,
     phantom_tokens: HashMap<String, String>, // For consistent tokenization
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)] // Clone needed for .clone() on Vec<CompiledTraceRule>
 struct CompiledTraceRule {
     name: String,
     regex: Regex,
@@ -29,17 +29,20 @@ pub struct TraceStats {
 }
 
 impl PhantomTracer {
-    pub fn new(rules: &[TraceRule]) -> Result<Self, Box<dyn std::error::Error>> {
+    // UPDATED: Accept case_sensitive as a parameter
+    pub fn new(
+        rules: &[TraceRule],
+        case_sensitive: bool,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut compiled_rules = Vec::new();
         let mut trace_stats = HashMap::new();
 
         for rule in rules {
-            let regex = if rule.case_sensitive.unwrap_or(false) {
+            let regex = if case_sensitive {
                 Regex::new(&rule.pattern)?
             } else {
                 Regex::new(&format!("(?i){}", rule.pattern))?
             };
-            
             compiled_rules.push(CompiledTraceRule {
                 name: rule.name.clone(),
                 regex,
@@ -48,11 +51,13 @@ impl PhantomTracer {
                 replacement: rule.replacement.clone(),
                 severity: rule.severity.clone(),
             });
-            
-            trace_stats.insert(rule.name.clone(), TraceStats {
-                severity_level: format!("{:?}", rule.severity),
-                ..Default::default()
-            });
+            trace_stats.insert(
+                rule.name.clone(),
+                TraceStats {
+                    severity_level: format!("{:?}", rule.severity),
+                    ..Default::default()
+                },
+            );
         }
 
         Ok(Self {
@@ -86,31 +91,36 @@ impl PhantomTracer {
 
         for rule in &sorted_rules {
             let original_result = result.clone();
-            
-            result = rule.regex.replace_all(&result, |caps: &regex::Captures| {
-                let matched = caps.get(0).map_or("", |m| m.as_str());
-                let phantomed = self.apply_obfuscation(matched, &rule.method, 
-                                                     rule.preserve_chars, &rule.replacement);
-                
-                // Record the phantom event
-                events.push(PhantomEvent {
-                    rule_name: rule.name.clone(),
-                    severity: rule.severity.clone(),
-                    original_value: matched.to_string(),
-                    phantom_value: phantomed.clone(),
-                    position: caps.get(0).map(|m| (m.start(), m.end())).unwrap_or((0, 0)),
-                    trace_id: generate_trace_id(),
-                });
+            result = rule
+                .regex
+                .replace_all(&result, |caps: &regex::Captures| {
+                    let matched = caps.get(0).map_or("", |m| m.as_str());
+                    let phantomed = self.apply_obfuscation(
+                        matched,
+                        &rule.method,
+                        rule.preserve_chars,
+                        &rule.replacement,
+                    );
 
-                phantomed
-            }).to_string();
+                    // Record the phantom event
+                    events.push(PhantomEvent {
+                        rule_name: rule.name.clone(),
+                        severity: rule.severity.clone(),
+                        original_value: matched.to_string(),
+                        phantom_value: phantomed.clone(),
+                        position: caps.get(0).map(|m| (m.start(), m.end())).unwrap_or((0, 0)),
+                        trace_id: generate_trace_id(),
+                    });
+
+                    phantomed
+                })
+                .to_string();
 
             // Update statistics if changes were made
             if result != original_result {
                 let stats = self.trace_stats.get_mut(&rule.name).unwrap();
                 stats.phantoms_created += 1;
                 stats.characters_traced += original_result.len() as u64 - result.len() as u64;
-                
                 let now = std::time::SystemTime::now();
                 if stats.first_trace.is_none() {
                     stats.first_trace = Some(now);
@@ -122,22 +132,25 @@ impl PhantomTracer {
         (result, events)
     }
 
-    fn apply_obfuscation(&mut self, value: &str, method: &ObfuscationMethod, 
-                        preserve_chars: Option<usize>, replacement: &Option<String>) -> String {
+    fn apply_obfuscation(
+        &mut self,
+        value: &str,
+        method: &ObfuscationMethod,
+        preserve_chars: Option<usize>,
+        replacement: &Option<String>,
+    ) -> String {
         match method {
             ObfuscationMethod::Phantom => {
                 let preserve = preserve_chars.unwrap_or(0);
                 phantom_string(value, preserve)
-            },
+            }
             ObfuscationMethod::Mirror => {
                 format!("PHANTOM_{:08X}", phantom_hash(value))
-            },
-            ObfuscationMethod::Mask => {
-                replacement.clone().unwrap_or_else(|| "[PHANTOMED]".to_string())
-            },
-            ObfuscationMethod::Vanish => {
-                String::new()
-            },
+            }
+            ObfuscationMethod::Mask => replacement
+                .clone()
+                .unwrap_or_else(|| "[PHANTOMED]".to_string()),
+            ObfuscationMethod::Vanish => String::new(),
             ObfuscationMethod::Tokenize => {
                 // Consistent tokenization
                 let token_key = format!("token_{}", phantom_hash(value));
@@ -148,7 +161,7 @@ impl PhantomTracer {
                     self.phantom_tokens.insert(token_key, token.clone());
                     token
                 }
-            },
+            }
         }
     }
 
@@ -157,17 +170,20 @@ impl PhantomTracer {
         let mut total_characters_traced = 0;
         let mut severity_breakdown = HashMap::new();
 
-        for (rule_name, stats) in &self.trace_stats {
+        for (_rule_name, stats) in &self.trace_stats {
             total_phantoms += stats.phantoms_created;
             total_characters_traced += stats.characters_traced;
-            
-            *severity_breakdown.entry(stats.severity_level.clone()).or_insert(0u64) += stats.phantoms_created;
+            *severity_breakdown
+                .entry(stats.severity_level.clone())
+                .or_insert(0u64) += stats.phantoms_created;
         }
 
         TraceReport {
             total_phantoms_created: total_phantoms,
             total_characters_traced: total_characters_traced,
-            rules_triggered: self.trace_stats.iter()
+            rules_triggered: self
+                .trace_stats
+                .iter()
                 .filter(|(_, stats)| stats.phantoms_created > 0)
                 .count(),
             severity_breakdown,
@@ -242,4 +258,4 @@ fn generate_trace_id() -> String {
 }
 
 // Re-export types from config
-use crate::config::{TraceRule, ObfuscationMethod, TraceSeverity};
+use crate::config::{ObfuscationMethod, TraceRule, TraceSeverity};

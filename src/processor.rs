@@ -1,16 +1,16 @@
-use crate::config::{PhantomTraceConfig, OutputFormat};
-use crate::tracer::{PhantomTracer, PhantomEvent, TraceReport};
-use std::time::Instant;
+use crate::config::{OutputFormat, PhantomTraceConfig};
+use crate::tracer::{PhantomEvent, PhantomTracer, TraceReport};
 use serde::Serialize;
+use std::time::Instant;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhantomTraceProcessor {
-    config: PhantomTraceConfig,
+    pub(crate) config: PhantomTraceConfig,
     tracer: PhantomTracer,
     processing_stats: ProcessingStats,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ProcessingStats {
     pub lines_processed: u64,
     pub lines_phantomed: u64,
@@ -21,8 +21,8 @@ pub struct ProcessingStats {
 
 impl PhantomTraceProcessor {
     pub fn new(config: PhantomTraceConfig) -> Result<Self, Box<dyn std::error::Error>> {
-        let tracer = PhantomTracer::new(&config.tracing.rules)?;
-        
+        // Updated: pass case_sensitive parameter to PhantomTracer::new
+        let tracer = PhantomTracer::new(&config.tracing.rules, config.tracing.case_sensitive)?;
         Ok(Self {
             config,
             tracer,
@@ -32,7 +32,6 @@ impl PhantomTraceProcessor {
 
     pub fn phantom_text(&mut self, input: &str) -> ProcessingResult {
         let start_time = Instant::now();
-        
         if self.processing_stats.start_time.is_none() {
             self.processing_stats.start_time = Some(start_time);
         }
@@ -44,17 +43,15 @@ impl PhantomTraceProcessor {
 
         for line in lines {
             let (phantomed_line, events) = self.tracer.trace_and_phantom(line);
-            
             if !events.is_empty() {
                 lines_phantomed += 1;
                 all_events.extend(events);
             }
-            
             phantomed_lines.push(phantomed_line);
         }
 
         let processing_time = start_time.elapsed();
-        
+
         // Update stats
         self.processing_stats.lines_processed += phantomed_lines.len() as u64;
         self.processing_stats.lines_phantomed += lines_phantomed;
@@ -70,34 +67,40 @@ impl PhantomTraceProcessor {
         }
     }
 
-    pub fn phantom_file(&mut self, input_path: &str, output_path: &str) -> Result<ProcessingResult, Box<dyn std::error::Error>> {
+    pub fn phantom_file(
+        &mut self,
+        input_path: &str,
+        output_path: &str,
+    ) -> Result<ProcessingResult, Box<dyn std::error::Error>> {
         let input_content = std::fs::read_to_string(input_path)?;
         let result = self.phantom_text(&input_content);
-        
+
         // Write output based on format
         match self.config.output.format {
             OutputFormat::Text => {
                 std::fs::write(output_path, &result.phantomed_text)?;
-            },
+            }
             OutputFormat::Json => {
                 let json_output = serde_json::to_string_pretty(&JsonOutput {
                     phantomed_text: result.phantomed_text.clone(),
-                    events: if self.config.output.log_phantom_events { 
-                        Some(result.phantom_events.clone()) 
-                    } else { 
-                        None 
+                    events: if self.config.output.log_phantom_events {
+                        Some(result.phantom_events.clone())
+                    } else {
+                        None
                     },
-                    trace_report: if self.config.output.include_trace_report { 
-                        Some(self.get_trace_report()) 
-                    } else { 
-                        None 
+                    trace_report: if self.config.output.include_trace_report {
+                        Some(self.get_trace_report())
+                    } else {
+                        None
                     },
                 })?;
                 std::fs::write(output_path, json_output)?;
-            },
+            }
             OutputFormat::Csv => {
                 let mut csv_content = String::new();
-                csv_content.push_str("rule_name,severity,original_value,phantom_value,start_pos,end_pos,trace_id\n");
+                csv_content.push_str(
+                    "rule_name,severity,original_value,phantom_value,start_pos,end_pos,trace_id\n",
+                );
                 for event in &result.phantom_events {
                     csv_content.push_str(&format!(
                         "{},{:?},{},{},{},{},{}\n",
@@ -111,12 +114,12 @@ impl PhantomTraceProcessor {
                     ));
                 }
                 std::fs::write(output_path, csv_content)?;
-            },
+            }
             OutputFormat::TraceReport => {
                 let report = self.get_trace_report();
                 let report_json = serde_json::to_string_pretty(&report)?;
                 std::fs::write(output_path, report_json)?;
-            },
+            }
         }
 
         // Create trace map if requested
@@ -128,7 +131,11 @@ impl PhantomTraceProcessor {
         Ok(result)
     }
 
-    fn create_trace_map(&self, result: &ProcessingResult, map_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_trace_map(
+        &self,
+        result: &ProcessingResult,
+        map_path: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let trace_map = TraceMap {
             total_events: result.phantom_events.len(),
             events_by_severity: {
@@ -205,7 +212,7 @@ pub struct ProcessingStatsOutput {
 #[derive(Debug, Serialize)]
 struct TraceMap {
     total_events: usize,
-    events_by_severity: std::collections::HashMap<String, usize>,
-    events_by_rule: std::collections::HashMap<String, usize>,
+    events_by_severity: std::collections::HashMap<String, u32>,
+    events_by_rule: std::collections::HashMap<String, u32>,
     phantom_coverage: f64,
 }
