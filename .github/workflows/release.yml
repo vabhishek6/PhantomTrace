@@ -37,6 +37,7 @@ jobs:
           **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
         draft: false
         prerelease: false
+        skipIfReleaseExists: true  # Skip if release already exists
         token: ${{ secrets.GITHUB_TOKEN }}
 
   build-and-upload:
