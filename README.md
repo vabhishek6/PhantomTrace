@@ -20,7 +20,7 @@ in logs, files, and real-time data streams with native integration for enterpris
 ## Features
 
 ### **Core Data Protection**
-- **Enterprise-Grade Pattern Recognition**: Advanced detection of credit cards, SSNs, emails, API keys, JWT tokens, database connections, and custom sensitive data
+- **Pattern Recognition**: Advanced detection of credit cards, SSNs, emails, API keys, JWT tokens, database connections, and custom sensitive data
 - **Multiple Obfuscation Methods**: Phantom (masking), Vanish (removal), Mirror (hashing), Mask (replacement), Tokenize (traceable tokens)
 - **Severity-Based Processing**: Critical, High, Medium, Low priority handling with customizable rules
 - **Comprehensive Reporting**: Detailed trace reports, event logging, coverage analytics, and processing metrics
@@ -275,4 +275,5 @@ The creation date shown on GitHub reflects when the repository was published the
 
 ***
 [⭐ Star on GitHub](https://github.com/vabhishek6/PhantomTrace) -  [🚀 Try it now](#-quick-start) -  [📖 Read the docs](#-documentation)
+
 
