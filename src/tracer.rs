@@ -43,6 +43,7 @@ impl PhantomTracer {
             } else {
                 Regex::new(&format!("(?i){}", rule.pattern))?
             };
+
             compiled_rules.push(CompiledTraceRule {
                 name: rule.name.clone(),
                 regex,
@@ -51,6 +52,7 @@ impl PhantomTracer {
                 replacement: rule.replacement.clone(),
                 severity: rule.severity.clone(),
             });
+
             trace_stats.insert(
                 rule.name.clone(),
                 TraceStats {
@@ -116,11 +118,15 @@ impl PhantomTracer {
                 })
                 .to_string();
 
-            // Update statistics if changes were made
+            // Update statistics if changes were made (FIXED: Use saturating_sub to prevent overflow)
             if result != original_result {
                 let stats = self.trace_stats.get_mut(&rule.name).unwrap();
                 stats.phantoms_created += 1;
-                stats.characters_traced += original_result.len() as u64 - result.len() as u64;
+
+                // Use saturating_sub to prevent subtraction overflow panics
+                stats.characters_traced +=
+                    (original_result.len() as u64).saturating_sub(result.len() as u64);
+
                 let now = std::time::SystemTime::now();
                 if stats.first_trace.is_none() {
                     stats.first_trace = Some(now);
@@ -230,16 +236,30 @@ pub struct TraceReport {
 // Utility functions for phantoming
 fn phantom_string(input: &str, preserve: usize) -> String {
     let len = input.len();
-    if len <= preserve * 2 {
-        "█".repeat(len) // Use block character for "phantom" effect
-    } else {
-        format!(
-            "{}{}{}",
-            &input[..preserve],
-            "█".repeat(len - preserve * 2),
-            &input[len - preserve..]
-        )
+
+    // Handle empty strings
+    if len == 0 {
+        return String::new();
     }
+
+    // If preserve is 0, replace everything
+    if preserve == 0 {
+        return "█".repeat(len);
+    }
+
+    // If total preservation (both sides) is greater than or equal to length,
+    // replace entire string with block characters
+    if preserve.saturating_mul(2) >= len {
+        return "█".repeat(len);
+    }
+
+    // Safe to slice since we've verified lengths
+    format!(
+        "{}{}{}",
+        &input[..preserve],
+        "█".repeat(len - preserve * 2),
+        &input[len - preserve..]
+    )
 }
 
 fn phantom_hash(input: &str) -> u32 {
