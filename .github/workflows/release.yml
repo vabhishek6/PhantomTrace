@@ -3,92 +3,49 @@ name: Release
 permissions:
   contents: write
 
-concurrency:
-  group: release-${{ github.ref_name }}
-  cancel-in-progress: true
-
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*'  # Trigger on semver tags with v prefix like v1.0.0
 
 jobs:
-  check-and-bump:
-    name: Check if release exists and bump minor version
-    runs-on: ubuntu-latest
-    outputs:
-      new_tag: ${{ steps.set-new-tag.outputs.new_tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Get release info
-        id: get_release
-        run: |
-          response=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }} )
-          echo "$response" | grep id || echo "not found"
-        continue-on-error: true
-
-      - name: Determine if release exists and bump minor version
-        id: set-new-tag
-        run: |
-          if [[ "${{ steps.get_release.outcome }}" == "success" ]]; then
-            echo "release_exists=true"
-            current_tag=${{ github.ref_name }}
-            IFS=.
-            read -ra parts <<< "${current_tag#v}"
-            major=${parts[0]}
-            minor=${parts[9]}
-            patch=${parts[10]}
-            minor=$((minor + 1))
-            new_tag="v${major}.${minor}.0"
-            echo "New tag: $new_tag"
-            echo "::set-output name=new_tag::$new_tag"
-          else
-            echo "::set-output name=new_tag::${{ github.ref_name }}"
-          fi
-
-      - name: Checkout for new tag push if bumped
-        if: steps.set-new-tag.outputs.new_tag != github.ref_name
-        uses: actions/checkout@v4
-
-      - name: Push new bumped tag
-        if: steps.set-new-tag.outputs.new_tag != github.ref_name
-        env:
-          TAG: ${{ steps.set-new-tag.outputs.new_tag }}
-        run: |
-          git tag $TAG
-          git push origin $TAG
-
   create-release:
-    name: Create Release
-    needs: check-and-bump
+    name: Create or Update Release
     runs-on: ubuntu-latest
-    if: needs.check-and-bump.outputs.new_tag == github.ref_name
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_id: ${{ steps.create_release.outputs.id }}
+
     steps:
-      - uses: actions/checkout@v4
-      - id: create_release
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create or Update GitHub Release
+        id: create_release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ github.ref_name }}
           name: PhantomTrace-${{ github.ref_name }}
           body: |
             ## PhantomTrace ${{ github.ref_name }}
+
             ### Installation
-            Download the binary for your platform below.
-            ### Changes
+            Download the appropriate binary for your platform below.
+
+            ### What's Changed
             - Release ${{ github.ref_name }}
-            Full changelog: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
+          update: true  # Allows updating release if it already exists
 
   build-and-upload:
-    name: Build & Upload Assets
+    name: Build and Upload Assets
     needs: create-release
     runs-on: ${{ matrix.os }}
+
     strategy:
       matrix:
         include:
@@ -104,23 +61,28 @@ jobs:
             target: x86_64-apple-darwin
             artifact: phantomtrace
             asset_name: phantomtrace-macos-x86_64
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
           targets: ${{ matrix.target }}
-          toolchain: ''
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-      - name: Build release binary
+
+      - name: Build release
         run: cargo build --release --target ${{ matrix.target }} --verbose
+
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: ${{ matrix.asset_name }}
           asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
