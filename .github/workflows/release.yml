@@ -6,46 +6,14 @@ permissions:
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger on semantic version tags starting with v
+      - 'v*.*.*'  # Trigger on semantic version tags with "v" prefix
 
 jobs:
-  create-release:
-    name: Create or Update Release
+  create-release-and-build:
+    name: Create or Update Release and Build Assets
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
-      release_id: ${{ steps.create_release.outputs.id }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create or Update GitHub Release
-        id: create_release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ github.ref_name }}
-          name: PhantomTrace-${{ github.ref_name }}
-          body: |
-            ## PhantomTrace ${{ github.ref_name }}
-
-            ### Installation
-            Download the appropriate binary for your platform below.
-
-            ### What's Changed
-            - Release ${{ github.ref_name }}
-
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          replacesArtifacts: true        # Replace assets in existing release
-          skipIfReleaseExists: false    # Try to create release even if tag exists; replacing assets
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  build-and-upload:
-    name: Build and Upload Assets
-    needs: create-release
-    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
@@ -67,10 +35,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create or Update GitHub Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          name: PhantomTrace-${{ github.ref_name }}
+          body: |
+            ## PhantomTrace ${{ github.ref_name }}
+
+            ### Installation
+            Download the appropriate binary for your platform below.
+
+            ### What's Changed
+            - Release ${{ github.ref_name }}
+
+            **Full changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          replacesArtifacts: true
+          skipIfReleaseExists: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
-          toolchain: stable           # Required parameter specifying Rust version
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Cache dependencies
@@ -84,7 +74,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact }}
           asset_name: ${{ matrix.asset_name }}
           asset_content_type: application/octet-stream
