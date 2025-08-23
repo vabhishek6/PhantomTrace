@@ -2,6 +2,8 @@
 # PhantomTrace
 <p align="left"> <img src="https://github.com/user-attachments/assets/f06b6216-f1c3-4131-8201-8b3171669902" width="280" alt="PhantomTrace logo"> </p>
 
+[![PhantomTrace CI](https://github.com/vabhishek6/PhantomTrace/actions/workflows/rust.yml/badge.svg)](https://github.com/vabhishek6/PhantomTrace/actions/workflows/rust.yml)
+
 
 **Log Obfuscation Tool for PCI, PII, and Confidential Data**
 
@@ -275,5 +277,6 @@ The creation date shown on GitHub reflects when the repository was published the
 
 ***
 [⭐ Star on GitHub](https://github.com/vabhishek6/PhantomTrace) -  [🚀 Try it now](#-quick-start) -  [📖 Read the docs](#-documentation)
+
 
 
