@@ -6,7 +6,7 @@ permissions:
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger on semver tags with v prefix like v1.0.0
+      - 'v*.*.*'  # Trigger on semantic version tags starting with v
 
 jobs:
   create-release:
@@ -38,8 +38,9 @@ jobs:
             **Full Changelog**: https://github.com/${{ github.repository }}/compare/v1.0.0...${{ github.ref_name }}
           draft: false
           prerelease: false
+          replacesArtifacts: true        # Replace assets in existing release
+          skipIfReleaseExists: false    # Try to create release even if tag exists; replacing assets
           token: ${{ secrets.GITHUB_TOKEN }}
-          update: true  # Allows updating release if it already exists
 
   build-and-upload:
     name: Build and Upload Assets
@@ -69,12 +70,13 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: stable           # Required parameter specifying Rust version
           targets: ${{ matrix.target }}
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Build release
+      - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }} --verbose
 
       - name: Upload release asset
